@@ -69,9 +69,9 @@ Each crop is framed around a focal point computed in [`src/app/saliency.ts`](src
 
 Two CE.SDK engines drive a vanilla-TypeScript DOM shell — **one scene per preset**:
 
-- A **headless `@cesdk/engine`** is the only thing that produces pixels: it builds a crop scene per preset and exports PNGs.
+- A **headless `@cesdk/engine`** is the only thing that produces pixels: it builds a crop scene per preset, renders small gallery thumbnails, and exports full-size PNGs on download.
 - A single **hidden `@cesdk/cesdk-js`** editor, created once and reused, hosts the crop-only modal and the preset catalog.
-- The **source of truth** for each crop is its serialized scene string; thumbnails are derived re-renders.
+- The **source of truth** for each crop is its serialized scene string; gallery thumbnails are cheap previews from the engine's thumbnail generator (`generateThumbnailAtTimeOffset`, no trial watermark), and the full-resolution export runs only when the user clicks **Download**.
 
 ```
 starterkit-multi-crop-ts-web/
@@ -98,9 +98,9 @@ starterkit-multi-crop-ts-web/
 
 - **Batch cropping** – one image → many social formats in a single pass
 - **Subject-aware framing** – focal-point detection keeps faces/subjects in frame
-- **Headless export** – a dedicated `CreativeEngine` renders crops to PNG with no visible canvas
+- **Headless rendering** – a dedicated `CreativeEngine` renders thumbnails and exports PNGs with no visible canvas
 - **Crop-only editor** – re-frame any crop with a resizable, aspect-locked frame
-- **ZIP download** – every crop re-rendered from its canonical scene and bundled
+- **ZIP download** – every crop exported at full size from its canonical scene, only on download, and bundled
 - **No framework** – pure TypeScript + Vite, runs entirely client-side
 
 ## Prerequisites
@@ -122,6 +122,7 @@ starterkit-multi-crop-ts-web/
 - [Crop & Transform](https://img.ly/docs/cesdk/js/edit-image/transform/crop-f67a47/)
 - [Asset Sources](https://img.ly/docs/cesdk/js/asset-management/overview/)
 - [Headless export to PNG](https://img.ly/docs/cesdk/node/conversion/to-png-f1660c/)
+- [Thumbnail previews](https://img.ly/docs/cesdk/js/export-save-publish/thumbnail-previews-dcf031/)
 - [Background Removal](https://www.npmjs.com/package/@imgly/background-removal)
 
 ## License

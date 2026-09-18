@@ -140,6 +140,19 @@ export function setGenerateNote(text: string): void {
   $('generate-status').textContent = text;
 }
 
+/**
+ * Reflect a running full-size export on the Download button. Exporting every
+ * crop at its real pixel size takes a moment (the gallery only holds small
+ * thumbnails), so disable the button and say what's happening.
+ */
+export function setDownloading(downloading: boolean): void {
+  const btn = $('download-all-btn') as HTMLButtonElement;
+  btn.disabled = downloading;
+  btn.innerHTML = downloading
+    ? '<span class="spinner"></span> Exporting…'
+    : 'Download all (.zip)';
+}
+
 // The tiles share one width (uniform grid); only the thumbnail inside each tile
 // is sized relative to its crop. The largest crop's longest side maps to
 // THUMB_MAX_SIDE (which fits inside the fixed-height stage), and every other

@@ -1,9 +1,17 @@
 /**
  * Headless renderer: a single `@cesdk/engine` CreativeEngine instance used to
- * build per-preset scenes (Task 4) and to render any scene string to a PNG
- * Blob. It is the only component that produces pixels; the editor only edits
- * crop transforms and hands scene strings back here to re-render.
+ * build per-preset scenes, render small gallery thumbnails, and export any
+ * scene string to a full-size PNG Blob. It is the only component that produces
+ * pixels; the editor only edits crop transforms and hands scene strings back
+ * here to re-render.
  *
+ * Two render paths, deliberately separate:
+ *  - `renderThumbnail` — a small, unwatermarked preview for the gallery via the
+ *    engine's thumbnail generator. Cheap, so it runs on every generate/save.
+ *  - `exportCrop` — the full-resolution PNG at the preset's exact pixels. Only
+ *    runs when the user clicks Download.
+ *
+ * @see https://img.ly/docs/cesdk/js/export-save-publish/thumbnail-previews-dcf031/
  * @see https://img.ly/docs/cesdk/node/conversion/to-png-f1660c/
  */
 
@@ -51,18 +59,19 @@ function withEngine<T>(critical: () => Promise<T>): Promise<T> {
 /** The crop is the page itself (its image fill is cropped to the preset). */
 function findCropBlock(engine: CreativeEngine): number {
   const page = engine.block.findByType('page')[0];
-  if (page == null) throw new Error('renderScene: scene has no page');
+  if (page == null) throw new Error('render: scene has no page');
   return page;
 }
 
 /**
- * Render a serialized scene's page to a PNG Blob at the preset's exact pixel
- * size. The page IS the crop (preset-sized, image as its cropped content fill);
- * `targetWidth/targetHeight` give the exact output pixels (a non-distorting
- * resize, since the page is already the preset aspect). Serialized against all
- * other engine ops.
+ * Export a crop at the preset's exact pixel size as a PNG. The page IS the crop
+ * (preset-sized, image as its cropped content fill); `targetWidth/targetHeight`
+ * give the exact output pixels (a non-distorting resize, since the page is
+ * already the preset aspect). This is the expensive full-resolution path (and
+ * the one that carries the trial watermark when unlicensed) — call it only when
+ * the user downloads. Serialized against all other engine ops.
  */
-export function renderScene(
+export function exportCrop(
   sceneString: string,
   targetWidth: number,
   targetHeight: number
@@ -70,12 +79,42 @@ export function renderScene(
   return withEngine(async () => {
     const engine = await getRenderEngine();
     await engine.scene.loadFromString(sceneString);
-    const cropBlock = findCropBlock(engine);
-    return engine.block.export(cropBlock, {
+    return engine.block.export(findCropBlock(engine), {
       mimeType: 'image/png',
       targetWidth,
       targetHeight
     });
+  });
+}
+
+// Gallery thumbnails never display larger than ~104 CSS px (see ui.ts), so a
+// 512px longest side stays crisp on 3x displays while being a fraction of a
+// full export. 512 is also the engine's hard cap for thumbnail height.
+const THUMBNAIL_MAX_SIDE = 512;
+
+/**
+ * Render a small PNG preview of a crop for the gallery via the engine's
+ * thumbnail generator (`generateThumbnailAtTimeOffset`, at time 0 — the scene
+ * is static). Unlike `export`, thumbnails are previews: they are cheap and are
+ * NOT watermarked in evaluation mode, so the gallery stays clean and only the
+ * downloaded files carry the trial watermark. The height is chosen so the
+ * longest side is THUMBNAIL_MAX_SIDE (width follows the page aspect); presets
+ * already smaller than that render at their native size.
+ *
+ * @see https://img.ly/docs/cesdk/js/export-save-publish/thumbnail-previews-dcf031/
+ */
+export function renderThumbnail(
+  sceneString: string,
+  cropWidth: number,
+  cropHeight: number
+): Promise<Blob> {
+  const scale = Math.min(1, THUMBNAIL_MAX_SIDE / Math.max(cropWidth, cropHeight));
+  const height = Math.max(1, Math.round(cropHeight * scale));
+  return withEngine(async () => {
+    const engine = await getRenderEngine();
+    await engine.scene.loadFromString(sceneString);
+    // Renders the scene's current page — the crop page is the only one.
+    return engine.block.generateThumbnailAtTimeOffset(height, 0);
   });
 }
 
@@ -103,7 +142,7 @@ export async function generateCrops(
 
   for (const preset of presets) {
     // Building mutates the shared engine's scene, so it runs inside the same
-    // lock as renderScene (which is itself serialized). Each is a self-contained
+    // lock as renderThumbnail (which is itself serialized). Each is a self-contained
     // critical section, so interleaving at their boundaries is safe.
     const sceneString = await withEngine(() =>
       buildPresetScene(
@@ -115,7 +154,9 @@ export async function generateCrops(
         focalPoint
       )
     );
-    const blob = await renderScene(sceneString, preset.width, preset.height);
+    // Only a gallery thumbnail is rendered here — the full-size export happens
+    // on Download (see download.ts).
+    const blob = await renderThumbnail(sceneString, preset.width, preset.height);
     results.push({
       id: preset.id,
       presetLabel: preset.label,

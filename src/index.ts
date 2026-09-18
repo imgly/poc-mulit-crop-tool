@@ -7,7 +7,7 @@ import { CropEditor } from './app/editor';
 import {
   generateCrops,
   focalPointFor,
-  renderScene
+  renderThumbnail
 } from './app/renderer';
 import { downloadAll } from './app/download';
 import {
@@ -28,6 +28,7 @@ import {
   renderGallery,
   renderSizeList,
   selectedPresetIds,
+  setDownloading,
   setGenerateNote,
   setGenerating,
   setUploadedImage,
@@ -82,7 +83,7 @@ async function main(): Promise<void> {
       handleGenerate().catch((e) => notifyError('Generating crops failed', e));
     });
   document.getElementById('download-all-btn')!.addEventListener('click', () => {
-    downloadAll(state.results).catch((e) => notifyError('Download failed', e));
+    handleDownloadAll().catch((e) => notifyError('Download failed', e));
   });
   document
     .getElementById('delete-all-btn')!
@@ -181,6 +182,21 @@ async function handleGenerate(): Promise<void> {
   }
 }
 
+/**
+ * The only path that runs the full-resolution export: every crop is exported
+ * at its preset size and zipped. The button is disabled meanwhile so a second
+ * click can't queue a duplicate export.
+ */
+async function handleDownloadAll(): Promise<void> {
+  if (state.results.length === 0) return;
+  setDownloading(true);
+  try {
+    await downloadAll(state.results);
+  } finally {
+    setDownloading(false);
+  }
+}
+
 let editingId: string | null = null;
 
 function handleDelete(id: string): void {
@@ -220,7 +236,9 @@ async function handleEditorSave(sceneString: string): Promise<void> {
   if (result == null) return;
   try {
     result.sceneString = sceneString;
-    const blob = await renderScene(sceneString, result.width, result.height);
+    // Only the gallery preview is refreshed; the full-size export waits for
+    // Download.
+    const blob = await renderThumbnail(sceneString, result.width, result.height);
     setThumbnail(result, URL.createObjectURL(blob));
     updateTile(result);
   } catch (error) {
