@@ -10,8 +10,8 @@
     "check:syntax": "tsc --noEmit"
   },
   "dependencies": {
-    "@cesdk/cesdk-js": "^1.76.0",
-    "@cesdk/engine": "^1.76.0",
+    "@cesdk/cesdk-js": "^1.82.0",
+    "@cesdk/engine": "^1.82.0",
     "@imgly/background-removal": "1.7.0",
     "client-zip": "^2.5.0",
     "onnxruntime-web": "1.21.0"

@@ -16,3 +16,4 @@ tsconfig.local.json
 # Local tooling (not part of the published starter kit)
 .superpowers/
 .claude/
+.vercel
